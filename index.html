@@ -2,329 +2,71 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Digital Hourglassd</title>
+<title>Water Ripple</title>
 
 <style>
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+    body{
+        margin:0;
+        overflow:hidden;
+        background:#050b18;
+        cursor:none;
+    }
 
-body {
-    overflow: hidden;
-    height: 100vh;
-    background: radial-gradient(circle at center, #1b1b2f, #050505 70%);
-    font-family: "Arial", sans-serif;
-    cursor: none;
-}
+    .ripple{
+        position:absolute;
+        width:20px;
+        height:20px;
+        border:2px solid rgba(255,255,255,0.8);
+        border-radius:50%;
+        pointer-events:none;
+        animation:ripple 1.5s ease-out forwards;
+    }
 
-canvas {
-    display: block;
-}
+    @keyframes ripple{
+        from{
+            transform:translate(-50%,-50%) scale(0);
+            opacity:1;
+        }
 
-.info {
-    position: fixed;
-    left: 30px;
-    top: 30px;
-    color: rgba(255,255,255,0.75);
-    z-index: 10;
-    pointer-events: none;
-}
+        to{
+            transform:translate(-50%,-50%) scale(8);
+            opacity:0;
+        }
+    }
 
-.info h1 {
-    font-size: 22px;
-    letter-spacing: 4px;
-    font-weight: 300;
-}
-
-.info p {
-    margin-top: 8px;
-    font-size: 13px;
-    letter-spacing: 1px;
-    opacity: 0.7;
-}
-
-.status {
-    position: fixed;
-    right: 30px;
-    bottom: 30px;
-    color: rgba(255,255,255,0.6);
-    font-size: 13px;
-    letter-spacing: 2px;
-    z-index: 10;
-    pointer-events: none;
-}
-
-.cursor {
-    position: fixed;
-    width: 18px;
-    height: 18px;
-    border: 1px solid rgba(255,255,255,0.8);
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-    z-index: 20;
-    box-shadow: 0 0 20px rgba(255,255,255,0.5);
-}
+    .text{
+        position:fixed;
+        top:30px;
+        left:30px;
+        color:white;
+        font-family:sans-serif;
+        opacity:0.6;
+        letter-spacing:3px;
+    }
 </style>
 </head>
 
 <body>
 
-<div class="info">
-    <h1>DIGITAL HOURGLASS</h1>
-    <p>move to create · stop to collapse · wait to reset</p>
+<div class="text">
+    move your mouse
 </div>
 
-<div class="status" id="status">AWAKE</div>
-<div class="cursor" id="cursor"></div>
-
-<canvas id="canvas"></canvas>
-
 <script>
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const statusText = document.getElementById("status");
-const cursor = document.getElementById("cursor");
+document.addEventListener("mousemove", e => {
 
-let w, h;
-let particles = [];
-let mouse = { x: innerWidth / 2, y: innerHeight / 2 };
-let lastMoveTime = Date.now();
-let idleTime = 0;
-let collapsed = false;
-let resetTimer = 0;
+    const ripple = document.createElement("div");
+    ripple.className = "ripple";
 
-function resize() {
-    w = canvas.width = window.innerWidth;
-    h = canvas.height = window.innerHeight;
-}
+    ripple.style.left = e.clientX + "px";
+    ripple.style.top = e.clientY + "px";
 
-window.addEventListener("resize", resize);
-resize();
+    document.body.appendChild(ripple);
 
-class Particle {
-    constructor(x, y) {
-        this.x = x;
-        this.y = y;
-
-        this.vx = (Math.random() - 0.5) * 2.5;
-        this.vy = (Math.random() - 0.5) * 2.5;
-
-        this.size = Math.random() * 2.5 + 1;
-        this.life = 1;
-
-        this.hue = 35 + Math.random() * 40;
-        this.mass = Math.random() * 0.7 + 0.3;
-
-        this.angle = Math.random() * Math.PI * 2;
-        this.spin = (Math.random() - 0.5) * 0.08;
-    }
-
-    update() {
-        const now = Date.now();
-        idleTime = now - lastMoveTime;
-
-        if (collapsed) {
-            this.vx += (Math.random() - 0.5) * 0.8;
-            this.vy += 0.35 + Math.random() * 0.25;
-            this.life -= 0.012;
-        } else if (idleTime > 700) {
-            this.vy += 0.045 * this.mass;
-            this.vx *= 0.992;
-            this.life -= 0.002;
-        } else {
-            this.vx += Math.sin(this.angle) * 0.03;
-            this.vy += Math.cos(this.angle) * 0.03;
-            this.life -= 0.0015;
-        }
-
-        this.angle += this.spin;
-        this.x += this.vx;
-        this.y += this.vy;
-
-        if (this.y > h - 10) {
-            this.y = h - 10;
-            this.vy *= -0.25;
-            this.vx *= 0.75;
-        }
-
-        if (this.x < 0 || this.x > w) {
-            this.vx *= -0.6;
-        }
-    }
-
-    draw() {
-        ctx.beginPath();
-        ctx.fillStyle = `hsla(${this.hue}, 90%, 65%, ${this.life})`;
-        ctx.shadowBlur = 18;
-        ctx.shadowColor = `hsl(${this.hue}, 90%, 60%)`;
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-    }
-}
-
-function createParticles(x, y, amount = 8) {
-    for (let i = 0; i < amount; i++) {
-        particles.push(new Particle(x, y));
-    }
-
-    if (particles.length > 1300) {
-        particles.splice(0, particles.length - 1300);
-    }
-}
-
-window.addEventListener("mousemove", e => {
-    mouse.x = e.clientX;
-    mouse.y = e.clientY;
-
-    cursor.style.left = mouse.x + "px";
-    cursor.style.top = mouse.y + "px";
-
-    lastMoveTime = Date.now();
-    collapsed = false;
-    resetTimer = 0;
-
-    createParticles(mouse.x, mouse.y, 10);
+    setTimeout(() => {
+        ripple.remove();
+    }, 1500);
 });
-
-window.addEventListener("click", e => {
-    createParticles(e.clientX, e.clientY, 80);
-});
-
-function drawHourglass() {
-    const cx = w / 2;
-    const top = h * 0.16;
-    const bottom = h * 0.84;
-    const mid = h / 2;
-    const width = Math.min(w, h) * 0.28;
-
-    ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
-    ctx.lineWidth = 2;
-
-    ctx.beginPath();
-    ctx.moveTo(cx - width, top);
-    ctx.lineTo(cx + width, top);
-    ctx.lineTo(cx + 12, mid);
-    ctx.lineTo(cx + width, bottom);
-    ctx.lineTo(cx - width, bottom);
-    ctx.lineTo(cx - 12, mid);
-    ctx.closePath();
-    ctx.stroke();
-
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.lineWidth = 1;
-
-    for (let i = 0; i < 7; i++) {
-        const y = top + (bottom - top) * (i / 6);
-        ctx.beginPath();
-        ctx.moveTo(cx - width * (1 - Math.abs(y - mid) / (bottom - top) * 1.8), y);
-        ctx.lineTo(cx + width * (1 - Math.abs(y - mid) / (bottom - top) * 1.8), y);
-        ctx.stroke();
-    }
-
-    ctx.restore();
-}
-
-function drawBackground() {
-    const gradient = ctx.createRadialGradient(
-        w / 2,
-        h / 2,
-        0,
-        w / 2,
-        h / 2,
-        Math.max(w, h) * 0.7
-    );
-
-    if (collapsed) {
-        gradient.addColorStop(0, "#3a0000");
-        gradient.addColorStop(0.5, "#150000");
-        gradient.addColorStop(1, "#000000");
-    } else if (idleTime > 700) {
-        gradient.addColorStop(0, "#201a10");
-        gradient.addColorStop(0.55, "#080808");
-        gradient.addColorStop(1, "#000000");
-    } else {
-        gradient.addColorStop(0, "#1b1b2f");
-        gradient.addColorStop(0.55, "#090914");
-        gradient.addColorStop(1, "#000000");
-    }
-
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-}
-
-function drawStream() {
-    if (idleTime > 700 && !collapsed) {
-        const cx = w / 2;
-
-        for (let i = 0; i < 2; i++) {
-            particles.push(new Particle(
-                cx + (Math.random() - 0.5) * 8,
-                h / 2 + Math.random() * 20
-            ));
-
-            particles[particles.length - 1].vx = (Math.random() - 0.5) * 0.3;
-            particles[particles.length - 1].vy = Math.random() * 1.5 + 1;
-            particles[particles.length - 1].size = Math.random() * 1.8 + 0.7;
-        }
-    }
-}
-
-function checkState() {
-    const now = Date.now();
-    idleTime = now - lastMoveTime;
-
-    if (idleTime < 700) {
-        statusText.textContent = "AWAKE";
-    } else if (idleTime < 4000) {
-        statusText.textContent = "FALLING";
-    } else if (idleTime < 7500) {
-        statusText.textContent = "COLLAPSE";
-        collapsed = true;
-    } else {
-        statusText.textContent = "RESET";
-        resetTimer++;
-
-        if (resetTimer > 80) {
-            particles = [];
-            collapsed = false;
-            lastMoveTime = Date.now();
-            resetTimer = 0;
-        }
-    }
-}
-
-function animate() {
-    checkState();
-    drawBackground();
-    drawHourglass();
-    drawStream();
-
-    ctx.globalCompositeOperation = "lighter";
-
-    particles.forEach(p => {
-        p.update();
-        p.draw();
-    });
-
-    ctx.globalCompositeOperation = "source-over";
-
-    particles = particles.filter(p =>
-        p.life > 0 &&
-        p.x > -50 &&
-        p.x < w + 50 &&
-        p.y < h + 80
-    );
-
-    requestAnimationFrame(animate);
-}
-
-animate();
 </script>
 
 </body>
